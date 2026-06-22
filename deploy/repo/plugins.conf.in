@@ -1,0 +1,17 @@
+# Consolidated OPNsense pkg repository (alphyriver plugin feed).
+#
+# Install on a node as /usr/local/etc/pkg/repos/alphyriver.conf and place the
+# matching public key at /usr/local/etc/pkg/keys/alphyriver.pub. The aggregate
+# workflow renders this template (substituting @PAGES_URL@) and publishes the
+# ready-to-use file at @PAGES_URL@/plugins.conf — fetch that rather than editing
+# this by hand.
+#
+# ${ABI} expands client-side (e.g. FreeBSD:14:amd64), so one conf works across
+# FreeBSD/OPNsense ABIs as long as the feed publishes that ABI's directory.
+alphyriver: {
+  url: "@PAGES_URL@/${ABI}",
+  priority: 10,
+  enabled: yes,
+  signature_type: "pubkey",
+  pubkey: "/usr/local/etc/pkg/keys/alphyriver.pub"
+}

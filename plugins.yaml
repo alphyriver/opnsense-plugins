@@ -1,0 +1,22 @@
+# Manifest of plugins bundled into the consolidated alphyriver pkg feed.
+#
+# This repo does NOT contain plugin source. Each plugin lives in its own
+# canonical repo with its own build/release pipeline and attaches the built
+# `.pkg` to its GitHub Release. The aggregate workflow
+# (.github/workflows/aggregate.yml) downloads the `.pkg` for each `tag` below,
+# combines them into one directory, re-signs the catalogue under the single
+# aggregate key, and publishes one feed to GitHub Pages.
+#
+# To add a plugin to the feed: append an entry. To bump a plugin: change `tag`.
+# Tags are pinned (not "latest") so the feed is deterministic.
+
+abi: "FreeBSD:14:amd64"
+
+plugins:
+  - repo: alphyriver/opnsense-oidc
+    tag: v1.0.0
+    asset: "os-oidc-*.pkg"
+
+  - repo: alphyriver/opnsense-truenas-api-client
+    tag: v0.1.0
+    asset: "os-truenas-api-client-*.pkg"

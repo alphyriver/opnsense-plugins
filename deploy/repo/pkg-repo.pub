@@ -1,0 +1,11 @@
+PLACEHOLDER — replace before the first feed build.
+
+This file must contain the PUBLIC half of the aggregate pkg signing key. Generate
+the keypair (the private key stays offline / in the PKG_SIGNING_KEY secret):
+
+    openssl genrsa -out alphyriver-pkg-signing.key 4096
+    openssl rsa -in alphyriver-pkg-signing.key -pubout -out deploy/repo/pkg-repo.pub
+
+Then commit the regenerated deploy/repo/pkg-repo.pub (a PEM block beginning
+"-----BEGIN PUBLIC KEY-----") and add the private key as the PKG_SIGNING_KEY
+GitHub Actions secret. See deploy/repo/README.md → "One-time setup".

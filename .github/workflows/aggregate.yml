@@ -1,0 +1,125 @@
+name: 📦 Aggregate feed
+
+# Rebuilds the consolidated alphyriver pkg feed: downloads each plugin's released
+# .pkg (per plugins.yaml), re-generates an RSA-signed pkg catalogue over all of
+# them, and publishes one feed to GitHub Pages.
+#
+# This repo holds no plugin source — each plugin is built and released in its own
+# canonical repo. See deploy/repo/README.md for the full design and one-time setup.
+#
+# Required repository setup (one-time):
+#   - Secret  PKG_SIGNING_KEY : the RSA private key (PEM) whose public half is
+#                               committed at deploy/repo/pkg-repo.pub.
+#   - Secret  RELEASES_TOKEN  : (optional) PAT with contents:read on the source
+#                               repos, if GITHUB_TOKEN can't read their releases.
+#   - Pages   Settings → Pages → Source: "Deploy from a branch" → gh-pages / root.
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'plugins.yaml'
+      - 'deploy/repo/**'
+      - '.github/workflows/aggregate.yml'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write   # push the gh-pages feed branch
+
+concurrency:
+  group: aggregate-feed
+  cancel-in-progress: false
+
+jobs:
+  aggregate:
+    if: ${{ github.server_url == 'https://github.com' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Read manifest and download plugin packages
+        env:
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          ABI=$(yq -r '.abi' plugins.yaml)
+          [ -n "$ABI" ] && [ "$ABI" != "null" ] || { echo "::error::abi missing in plugins.yaml"; exit 1; }
+          mkdir -p "site/${ABI}"
+
+          # Download each plugin's released .pkg into the single feed directory.
+          yq -r '.plugins[] | [.repo, .tag, .asset] | @tsv' plugins.yaml \
+          | while IFS=$(printf '\t') read -r repo tag asset; do
+              echo "==> $repo @ $tag ($asset)"
+              gh release download "$tag" --repo "$repo" --pattern "$asset" --dir "site/${ABI}"
+            done
+
+          echo "downloaded packages:"; ls -l "site/${ABI}"
+          # At least one .pkg must have landed.
+          ls "site/${ABI}"/*.pkg >/dev/null
+
+          # Package names for the landing page (strip "-*.pkg" from each asset glob).
+          PKG_LIST=$(yq -r '.plugins[].asset' plugins.yaml | sed 's/-\*\.pkg$//' | paste -sd' ' -)
+
+          echo "ABI=$ABI"           >> "$GITHUB_ENV"
+          echo "PKG_LIST=$PKG_LIST" >> "$GITHUB_ENV"
+
+      - name: Stage signing key
+        env:
+          SIGNING_KEY: ${{ secrets.PKG_SIGNING_KEY }}
+        run: |
+          if [ -z "$SIGNING_KEY" ]; then echo "::error::PKG_SIGNING_KEY secret is not set"; exit 1; fi
+          umask 077
+          printf '%s\n' "$SIGNING_KEY" > signing.key
+
+      - name: Sign the combined catalogue (FreeBSD)
+        uses: vmactions/freebsd-vm@v1
+        with:
+          envs: 'ABI'
+          usesh: true
+          release: "14.3"
+          prepare: |
+            # The stock FreeBSD-kmods repo 404s for this ABI's quarterly branch and
+            # can break pkg's bootstrap. We only run `pkg repo` (offline), so disable it.
+            mkdir -p /usr/local/etc/pkg/repos
+            echo 'FreeBSD-kmods: { enabled: no }' > /usr/local/etc/pkg/repos/FreeBSD-kmods.conf
+          run: |
+            set -e
+            WS=$(pwd)
+            # Generate + RSA-sign the catalogue over every downloaded .pkg.
+            pkg repo "$WS/site/${ABI}" "rsa:$WS/signing.key"
+            echo "catalogue contents:"; ls -l "$WS/site/${ABI}"
+
+      - name: Render feed metadata (conf, key, landing page)
+        run: |
+          set -euo pipefail
+          rm -f signing.key
+          OWNER=$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')
+          REPO="${GITHUB_REPOSITORY#*/}"
+          PAGES_URL="https://${OWNER}.github.io/${REPO}"
+          REPO_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}"
+          SRC="deploy/repo"
+
+          # Repo conf + published copy of the signing public key.
+          sed "s#@PAGES_URL@#${PAGES_URL}#g" "${SRC}/plugins.conf.in" > site/plugins.conf
+          cp "${SRC}/pkg-repo.pub" site/pkg-repo.pub
+          KEY_SHA256=$(sha256sum site/pkg-repo.pub | cut -d' ' -f1)
+
+          # Landing page.
+          sed -e "s#@PAGES_URL@#${PAGES_URL}#g" \
+              -e "s#@REPO_URL@#${REPO_URL}#g" \
+              -e "s#@REPO_SLUG@#${GITHUB_REPOSITORY}#g" \
+              -e "s#@ABI@#${ABI}#g" \
+              -e "s#@PKG_LIST@#${PKG_LIST}#g" \
+              -e "s#@KEY_SHA256@#${KEY_SHA256}#g" \
+              "${SRC}/index.html.in" > site/index.html
+          echo "feed contents:"; ls -R site | head -40
+
+      - name: Publish feed to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./site
+          publish_branch: gh-pages
+          keep_files: false
+          commit_message: "feed: rebuild (${{ github.sha }})"
