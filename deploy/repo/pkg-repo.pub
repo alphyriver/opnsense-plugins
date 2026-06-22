@@ -1,11 +1,14 @@
-PLACEHOLDER — replace before the first feed build.
-
-This file must contain the PUBLIC half of the aggregate pkg signing key. Generate
-the keypair (the private key stays offline / in the PKG_SIGNING_KEY secret):
-
-    openssl genrsa -out alphyriver-pkg-signing.key 4096
-    openssl rsa -in alphyriver-pkg-signing.key -pubout -out deploy/repo/pkg-repo.pub
-
-Then commit the regenerated deploy/repo/pkg-repo.pub (a PEM block beginning
-"-----BEGIN PUBLIC KEY-----") and add the private key as the PKG_SIGNING_KEY
-GitHub Actions secret. See deploy/repo/README.md → "One-time setup".
+-----BEGIN PUBLIC KEY-----
+MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAwZakdirC2liJne+zUwou
+eETqIxFBg0ompEkw0NqvX5FLXD1fip/MhJwcRZYPYMQbtcxpZimWa8eexJdjoeJZ
+X4EA1ieRLcKMAd9vYsgwNEs7GlwvAavMQ5p5pN7BhT23zWk3M0kui3CRQdWmpPiz
+nHtwDjCSfCrw+0Eulq00Ikd1WVxT10iiDxPH4TDMFga/7MTHYTOCFWPgYI6Kz58F
+7Z7UQwPhGlacSlNyG4gKwWHcrKRhSMODCA8Ol3SmU10bjnCZXqXnWWyi7cx+8mMB
+Pcg9nsY40hk6a0MH2cxLXcVsCLjKcFf/zxEADX3OK3TP2Vc1J/8c2LSYllY4vTk+
+6A/FVZhUvh459zP8uLMLM7Qxl0KCueQrrBu1H1AbDpge394uNfBTjInb4qTWSA+E
+ryujKZKC1TayZfv3iltr9SFRqf8sNIun18AQUculoV98FVIq83+fv/ulE2yI5OXb
+pDyWd4hESQ1t7oTnXZ7HPg/s4ainqKmQa/Fm02z3LYN+68xe2Of4SsEY3buhy1O4
+COUWRSGu4oxs8BCTDHZ+yskhX+FvGdCRolmLRzBkhH036jprpPXh2Nmgby9WBmGG
+mtjJoYlB5ybcmwmo8z9LWJR+x0Ymikkt8HzhTZe2M7xg053f0ZteZhT7oFhvfcjX
+vp3WOHeP+G8QX6yEjA1XLM0CAwEAAQ==
+-----END PUBLIC KEY-----
