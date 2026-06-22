@@ -36,7 +36,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+        with:
+          persist-credentials: false
 
       - name: Read manifest and download plugin packages
         env:
@@ -44,7 +46,7 @@ jobs:
         run: |
           set -euo pipefail
           ABI=$(yq -r '.abi' plugins.yaml)
-          [ -n "$ABI" ] && [ "$ABI" != "null" ] || { echo "::error::abi missing in plugins.yaml"; exit 1; }
+          if [ -z "$ABI" ] || [ "$ABI" = "null" ]; then echo "::error::abi missing in plugins.yaml"; exit 1; fi
           mkdir -p "site/${ABI}"
 
           # Download each plugin's released .pkg into the single feed directory.
@@ -73,7 +75,7 @@ jobs:
           printf '%s\n' "$SIGNING_KEY" > signing.key
 
       - name: Sign the combined catalogue (FreeBSD)
-        uses: vmactions/freebsd-vm@v1
+        uses: vmactions/freebsd-vm@b84ab5559b5a1bb4b8ee2737d2506a16e1737636  # v1.4.8
         with:
           envs: 'ABI'
           usesh: true
@@ -116,7 +118,7 @@ jobs:
           echo "feed contents:"; ls -R site | head -40
 
       - name: Publish feed to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v4
+        uses: peaceiris/actions-gh-pages@84c30a85c19949d7eee79c4ff27748b70285e453  # v4.1.0
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./site
