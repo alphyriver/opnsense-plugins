@@ -30,9 +30,9 @@ abis:
 # with the `slug` of the ABI currently being assembled.
 plugins:
   - repo: alphyriver/opnsense-oidc
-    tag: v1.0.0
+    tag: v1.0.1
     asset: "os-oidc-*-@SLUG@.pkg"
 
   - repo: alphyriver/opnsense-truenas-api-client
-    tag: v0.1.0
+    tag: v0.1.2
     asset: "os-truenas-api-client-*-@SLUG@.pkg"
