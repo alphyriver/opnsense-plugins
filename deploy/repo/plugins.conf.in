@@ -6,8 +6,10 @@
 # ready-to-use file at @PAGES_URL@/plugins.conf — fetch that rather than editing
 # this by hand.
 #
-# ${ABI} expands client-side (e.g. FreeBSD:14:amd64), so one conf works across
-# FreeBSD/OPNsense ABIs as long as the feed publishes that ABI's directory.
+# ${ABI} expands client-side (e.g. FreeBSD:14:amd64 on OPNsense 26.1,
+# FreeBSD:15:amd64 on 26.7+), so this one conf works across FreeBSD/OPNsense
+# ABIs — the aggregate workflow publishes a directory for each ABI in
+# plugins.yaml.
 alphyriver: {
   url: "@PAGES_URL@/${ABI}",
   priority: 10,

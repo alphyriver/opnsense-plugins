@@ -10,13 +10,29 @@
 # To add a plugin to the feed: append an entry. To bump a plugin: change `tag`.
 # Tags are pinned (not "latest") so the feed is deterministic.
 
-abi: "FreeBSD:14:amd64"
+# pkg ABIs the feed publishes, one directory each. A plugin package is stamped
+# with the ABI of the FreeBSD host that built it and pkg rejects a mismatch, so
+# the feed must carry every ABI in the fleet: OPNsense 26.1 and below resolve
+# FreeBSD:14:amd64, 26.7 and up resolve FreeBSD:15:amd64 (the repo conf expands
+# ${ABI} client-side). `slug` is how the ABI appears in a release asset name,
+# since colons are not usable there.
+#
+# To add an ABI: append a row here, and make sure every plugin below publishes a
+# release asset for it — each plugin's own release workflow has a matching build
+# matrix.
+abis:
+  - abi: "FreeBSD:14:amd64"
+    slug: "freebsd14-amd64"
+  - abi: "FreeBSD:15:amd64"
+    slug: "freebsd15-amd64"
 
+# `asset` is a glob against the plugin's release assets; @SLUG@ is substituted
+# with the `slug` of the ABI currently being assembled.
 plugins:
   - repo: alphyriver/opnsense-oidc
     tag: v1.0.0
-    asset: "os-oidc-*.pkg"
+    asset: "os-oidc-*-@SLUG@.pkg"
 
   - repo: alphyriver/opnsense-truenas-api-client
     tag: v0.1.0
-    asset: "os-truenas-api-client-*.pkg"
+    asset: "os-truenas-api-client-*-@SLUG@.pkg"

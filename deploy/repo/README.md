@@ -59,9 +59,11 @@ under it, so nodes pin only this one key.
 
 On each run, `aggregate.yml`:
 
-1. reads `plugins.yaml` (ABI + list of `repo`/`tag`/`asset`),
-2. downloads each plugin's `.pkg` from its GitHub Release into `site/<ABI>/`,
-3. re-generates + RSA-signs the catalogue over all packages
+1. reads `plugins.yaml` (list of ABIs + list of `repo`/`tag`/`asset`),
+2. for each ABI, downloads each plugin's `.pkg` for that ABI from its GitHub
+   Release into `site/<ABI>/` (the manifest's asset glob substitutes the ABI's
+   `slug` for `@SLUG@`),
+3. re-generates + RSA-signs one catalogue per ABI directory
    (`pkg repo site/<ABI> rsa:<key>` on a FreeBSD VM),
 4. renders `plugins.conf` + `pkg-repo.pub` + a landing page at the Pages root,
 5. publishes `site/` to `gh-pages`.
@@ -77,8 +79,14 @@ pkg install os-oidc os-truenas-api-client
 
 ## Notes
 
-- The feed directory is keyed by pkg ABI (e.g. `FreeBSD:14:amd64`), set by `abi`
-  in `plugins.yaml`. All bundled plugins must publish a `.pkg` for that ABI.
+- The feed carries one directory per pkg ABI, listed under `abis` in
+  `plugins.yaml`: `FreeBSD:14:amd64` for OPNsense 26.1 and below,
+  `FreeBSD:15:amd64` for 26.7+. The repo conf's `${ABI}` expands client-side, so
+  each firewall resolves its own — which is what lets a fleet upgrade node by
+  node. A package is stamped with the ABI of the FreeBSD host that built it and
+  pkg rejects a mismatch, so every bundled plugin must publish a release asset
+  for every ABI listed here; each plugin's release workflow has a matching build
+  matrix. Adding an ABI means a row here plus a row in each plugin's matrix.
 - The repo conf uses `signature_type: pubkey`; a node only trusts packages whose
   catalogue verifies against the pinned `alphyriver.pub`.
 - The feed carries exactly the manifest-pinned version of each plugin. That is
