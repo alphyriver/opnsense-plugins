@@ -8,7 +8,8 @@
 # aggregate key, and publishes one feed to GitHub Pages.
 #
 # To add a plugin to the feed: append an entry. To bump a plugin: change `tag`.
-# Tags are pinned (not "latest") so the feed is deterministic.
+# Tags are pinned (not "latest") so the feed is deterministic;
+# .github/workflows/bump-plugins.yml bumps them when a plugin releases.
 
 # pkg ABIs the feed publishes, one directory each. A plugin package is stamped
 # with the ABI of the FreeBSD host that built it and pkg rejects a mismatch, so

@@ -1,0 +1,128 @@
+name: 🔄 Bump plugin tags
+
+# Keeps plugins.yaml tracking each plugin's latest release, so the feed follows
+# new releases without anyone editing the manifest by hand. For every plugin it
+# asks the source repo for its latest (non-draft, non-prerelease) release; if
+# that is newer than the pinned `tag` AND ships an asset for every ABI in the
+# feed, the tag is bumped, committed to main, and the aggregate feed rebuilt.
+#
+# Tags stay pinned in plugins.yaml, so the feed is still deterministic and every
+# bump is a visible commit that can be reverted.
+#
+# Triggers:
+#   - repository_dispatch (plugin-released): sent by a plugin's release workflow
+#     once its assets are uploaded, so the feed updates within minutes. The
+#     payload is ignored — the event only means "check now". See
+#     deploy/repo/README.md for the snippet to add to each plugin repo.
+#   - schedule: daily fallback, in case a dispatch was missed or a release's
+#     assets were not all uploaded when it was checked.
+#   - workflow_dispatch: run by hand.
+#
+# Pushes made with GITHUB_TOKEN do not start other workflows, so this workflow
+# dispatches aggregate.yml itself after pushing a bump. If main is protected
+# against direct pushes, the push step fails; allow github-actions to bypass, or
+# switch this to opening a PR.
+
+on:
+  repository_dispatch:
+    types: [ plugin-released ]
+  schedule:
+    - cron: '17 6 * * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write   # push the plugins.yaml bump to main
+  actions: write    # dispatch aggregate.yml
+
+concurrency:
+  group: bump-plugins
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    if: ${{ github.server_url == 'https://github.com' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Bump pinned tags to latest complete releases
+        id: bump
+        env:
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          yq -r '.abis[].slug' plugins.yaml > slugs.txt
+          if [ ! -s slugs.txt ]; then echo "::error::abis missing in plugins.yaml"; exit 1; fi
+
+          bumped=()
+          while IFS=$(printf '\t') read -r repo tag asset; do
+            latest=$(gh release view --repo "$repo" --json tagName --jq .tagName)
+            if [ "$latest" = "$tag" ]; then
+              echo "$repo: $tag is current"
+              continue
+            fi
+            # Never move backwards, e.g. if an older release is marked latest.
+            newest=$(printf '%s\n%s\n' "${tag#v}" "${latest#v}" | sort -V | tail -n1)
+            if [ "$newest" != "${latest#v}" ]; then
+              echo "::warning::$repo: latest release $latest is older than pinned $tag; skipping"
+              continue
+            fi
+
+            # The aggregate run fails on any missing ABI asset, so only bump to a
+            # release that is complete. A partial one is retried on the next run.
+            names=$(gh release view "$latest" --repo "$repo" --json assets --jq '.assets[].name')
+            complete=true
+            while read -r slug; do
+              pattern=${asset//@SLUG@/$slug}
+              found=false
+              while read -r name; do
+                # shellcheck disable=SC2053  # $pattern is a glob on purpose
+                if [[ $name == $pattern ]]; then found=true; break; fi
+              done <<< "$names"
+              if [ "$found" = false ]; then
+                echo "::warning::$repo $latest has no asset matching $pattern yet; not bumping"
+                complete=false
+              fi
+            done < slugs.txt
+            [ "$complete" = true ] || continue
+
+            # Rewrite only the tag line of this plugin's entry, keeping the
+            # file's comments and layout intact (yq would reformat it).
+            awk -v repo="$repo" -v new="$latest" '
+              /^[[:space:]]*-[[:space:]]*repo:/ { inblock = ($NF == repo) }
+              inblock && /^[[:space:]]*tag:/ { sub(/tag:.*/, "tag: " new); inblock = 0 }
+              { print }
+            ' plugins.yaml > plugins.yaml.new
+            mv plugins.yaml.new plugins.yaml
+            echo "$repo: $tag -> $latest"
+            bumped+=("${repo#*/} $latest")
+          done < <(yq -r '.plugins[] | [.repo, .tag, .asset] | @tsv' plugins.yaml)
+          rm -f slugs.txt
+
+          if [ "${#bumped[@]}" -eq 0 ]; then
+            echo "nothing to bump"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git diff
+          {
+            echo "changed=true"
+            echo "summary=$(IFS=,; echo "${bumped[*]}" | sed 's/,/, /g')"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Commit, push and rebuild the feed
+        if: ${{ steps.bump.outputs.changed == 'true' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SUMMARY: ${{ steps.bump.outputs.summary }}
+        run: |
+          set -euo pipefail
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "chore(feed): bump $SUMMARY"
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:main
+          gh workflow run aggregate.yml --repo "$GITHUB_REPOSITORY" --ref main
