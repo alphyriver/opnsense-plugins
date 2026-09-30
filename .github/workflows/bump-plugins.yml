@@ -109,9 +109,10 @@ jobs:
             exit 0
           fi
           git diff
+          summary=$(printf '%s, ' "${bumped[@]}")
           {
             echo "changed=true"
-            echo "summary=$(IFS=,; echo "${bumped[*]}" | sed 's/,/, /g')"
+            echo "summary=${summary%, }"
           } >> "$GITHUB_OUTPUT"
 
       - name: Commit, push and rebuild the feed
