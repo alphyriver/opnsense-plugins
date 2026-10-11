@@ -53,9 +53,37 @@ under it, so nodes pin only this one key.
 ## Updating the feed
 
 - **Add a plugin:** append an entry to `plugins.yaml` (`repo`, `tag`, `asset`).
-- **Bump a plugin:** change its `tag` in `plugins.yaml`.
+- **Bump a plugin:** automatic — see below. To pin by hand, change its `tag` in
+  `plugins.yaml`.
 - **Rebuild:** push the change (the workflow triggers on `plugins.yaml` /
   `deploy/repo/**`), or run it by hand: `gh workflow run aggregate.yml`.
+
+### Automatic bumps on new plugin releases
+
+[`bump-plugins.yml`](../../.github/workflows/bump-plugins.yml) checks each
+plugin's latest release. When it is newer than the pinned `tag` and ships an
+asset for every ABI, it commits the new `tag` to `main` and dispatches
+`aggregate.yml`. Tags stay pinned, so each bump is a revertible commit. A release
+missing an ABI asset is skipped and retried on the next run.
+
+It runs daily as a fallback, by hand (`gh workflow run bump-plugins.yml`), and —
+for near-immediate updates — when a plugin repo sends a `plugin-released`
+dispatch. Add this as the **last** step of each plugin's release workflow, after
+its `.pkg` assets are uploaded:
+
+```yaml
+      - name: Notify the aggregate feed
+        env:
+          GH_TOKEN: ${{ secrets.FEED_DISPATCH_TOKEN }}
+        run: gh api repos/alphyriver/opnsense-plugins/dispatches -f event_type=plugin-released
+```
+
+`FEED_DISPATCH_TOKEN` is a secret in the plugin repo: a fine-grained PAT scoped
+to `alphyriver/opnsense-plugins` with **Contents: read and write** (required by
+the dispatch API). The payload is ignored; the event only means "check now".
+
+The bump is pushed straight to `main` with `GITHUB_TOKEN`, so `main` must allow
+pushes from GitHub Actions (or add `github-actions` as a ruleset bypass).
 
 On each run, `aggregate.yml`:
 

@@ -32,6 +32,10 @@ The aggregate workflow ([`.github/workflows/aggregate.yml`](.github/workflows/ag
 reads [`plugins.yaml`](plugins.yaml), downloads each plugin's released `.pkg`,
 re-signs the combined catalogue, and publishes the feed.
 
-- **Add a plugin / bump a version:** edit `plugins.yaml` and push (or run the
-  workflow manually with `gh workflow run aggregate.yml`).
+- **Add a plugin:** edit `plugins.yaml` and push (or run the workflow manually
+  with `gh workflow run aggregate.yml`).
+- **New plugin releases** are picked up automatically by
+  [`bump-plugins.yml`](.github/workflows/bump-plugins.yml), which bumps the
+  pinned `tag` and rebuilds the feed — daily, or immediately when a plugin repo
+  sends a `plugin-released` dispatch.
 - **One-time setup & design rationale:** see [`deploy/repo/README.md`](deploy/repo/README.md).
